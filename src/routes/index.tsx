@@ -246,7 +246,9 @@ function ScalpingBot() {
             </div>
             <button
               onClick={() => setRunning((v) => !v)}
-              className={`rounded-md px-4 py-2 text-sm font-semibold transition-colors ${
+              disabled={!running && riskBlocked}
+              title={!running && riskBlocked ? "Limite de perda diária atingido" : undefined}
+              className={`rounded-md px-4 py-2 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                 running
                   ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
                   : "bg-primary text-primary-foreground hover:bg-primary/90"
@@ -254,6 +256,7 @@ function ScalpingBot() {
             >
               {running ? "Parar robô" : "Ligar robô"}
             </button>
+
           </div>
         </div>
       </header>
