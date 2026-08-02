@@ -169,6 +169,19 @@ export async function setLeverage(symbol: string, side: "LONG" | "SHORT", levera
   return signedRequest("POST", "/openApi/swap/v2/trade/leverage", { symbol, side, leverage });
 }
 
+/** Soma o PnL realizado (incluindo taxas e funding) desde 00:00 UTC de hoje. */
+export async function fetchDailyPnl(symbol?: string): Promise<number> {
+  const startOfDay = new Date();
+  startOfDay.setUTCHours(0, 0, 0, 0);
+  const data = await signedRequest<Array<{ income: string; symbol: string; incomeType: string }>>(
+    "GET",
+    "/openApi/swap/v2/user/income",
+    { startTime: startOfDay.getTime(), limit: 1000, ...(symbol ? { symbol } : {}) },
+  );
+  return (data ?? []).reduce((total, row) => total + Number(row.income ?? 0), 0);
+}
+
+
 export type OrderResult = { orderId: string; symbol: string; side: string; positionSide: string };
 
 export async function placeMarketOrder(input: {

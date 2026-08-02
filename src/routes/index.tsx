@@ -17,7 +17,14 @@ import { toast } from "sonner";
 
 import { Toaster } from "@/components/ui/sonner";
 import type { BotConfig } from "@/lib/trading.functions";
-import { botTick, closeTrade, getAccount, getMarket, openTrade } from "@/lib/trading.functions";
+import {
+  botTick,
+  closeTrade,
+  getAccount,
+  getMarket,
+  getRiskStatus,
+  openTrade,
+} from "@/lib/trading.functions";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -58,7 +65,12 @@ const defaultConfig: BotConfig = {
   takeProfitPct: 0.4,
   stopLossPct: 0.25,
   allowShort: true,
+  riskPerTradePct: 1,
+  maxDailyLossPct: 3,
+  maxLeverage: 10,
+  useRiskSizing: true,
 };
+
 
 type LogEntry = { at: number; kind: "info" | "trade" | "error"; text: string };
 
@@ -78,6 +90,7 @@ function ScalpingBot() {
   const tickFn = useServerFn(botTick);
   const openFn = useServerFn(openTrade);
   const closeFn = useServerFn(closeTrade);
+  const riskFn = useServerFn(getRiskStatus);
 
   const pushLog = useCallback((kind: LogEntry["kind"], text: string) => {
     setLog((prev) => [{ at: Date.now(), kind, text }, ...prev].slice(0, 40));
@@ -95,14 +108,26 @@ function ScalpingBot() {
     refetchInterval: 8000,
   });
 
+  const risk = useQuery({
+    queryKey: ["risk", config.symbol, config.maxDailyLossPct],
+    queryFn: () => riskFn({ data: { symbol: config.symbol, maxDailyLossPct: config.maxDailyLossPct } }),
+    refetchInterval: 20000,
+  });
+
+
   const manualOrder = useMutation({
     mutationFn: (side: "LONG" | "SHORT") =>
       openFn({ data: { ...config, side, price: market.data?.analysis?.price ?? 0 } }),
     onSuccess: (res) => {
-      pushLog("trade", `Ordem manual ${res.side} enviada · TP ${fmt(res.takeProfit)} / SL ${fmt(res.stopLoss)}`);
+      pushLog(
+        "trade",
+        `Ordem manual ${res.side} enviada · ${res.quantity} @ ${res.leverage}x (sizing ${res.sizing}) · TP ${fmt(res.takeProfit)} / SL ${fmt(res.stopLoss)}`,
+      );
       toast.success(`Ordem ${res.side} enviada`);
       void account.refetch();
+      void risk.refetch();
     },
+
     onError: (error: Error) => {
       pushLog("error", error.message);
       toast.error(error.message);
@@ -116,6 +141,7 @@ function ScalpingBot() {
       pushLog("trade", "Posição encerrada a mercado.");
       toast.success("Posição encerrada");
       void account.refetch();
+      void risk.refetch();
     },
     onError: (error: Error) => {
       pushLog("error", error.message);
@@ -137,11 +163,18 @@ function ScalpingBot() {
           pushLog("trade", res.message);
           toast.success(res.message);
           void account.refetch();
+          void risk.refetch();
+        } else if (res.action === "blocked") {
+          pushLog("error", res.message);
+          toast.error(res.message);
+          void risk.refetch();
+          setRunning(false);
         } else if (res.action === "skip") {
           pushLog("error", res.message);
         } else {
           pushLog("info", res.message);
         }
+
       } catch (error) {
         if (!cancelled) {
           const message = error instanceof Error ? error.message : "Falha no ciclo do robô";
@@ -170,12 +203,28 @@ function ScalpingBot() {
   const credentialsMissing = market.data ? !market.data.credentials : false;
   const positions = account.data?.positions ?? [];
   const balance = account.data?.balance ?? null;
+  const guard = risk.data?.guard ?? null;
+  const riskBlocked = guard?.blocked ?? false;
+
+  const riskAmount = balance ? (balance.equity * config.riskPerTradePct) / 100 : null;
+  const estimatedQty =
+    config.useRiskSizing && riskAmount && analysis?.price && config.stopLossPct > 0
+      ? riskAmount / (analysis.price * (config.stopLossPct / 100))
+      : config.quantity;
 
   const sideColor =
     analysis?.side === "LONG" ? "text-long" : analysis?.side === "SHORT" ? "text-short" : "text-muted-foreground";
 
   const update = <K extends keyof BotConfig>(key: K, value: BotConfig[K]) =>
-    setConfig((prev) => ({ ...prev, [key]: value }));
+    setConfig((prev) => {
+      const next = { ...prev, [key]: value };
+      if (key === "maxLeverage" || key === "leverage") {
+        next.maxLeverage = Math.max(1, Math.min(125, Math.floor(next.maxLeverage || 1)));
+        next.leverage = Math.max(1, Math.min(next.maxLeverage, Math.floor(next.leverage || 1)));
+      }
+      return next;
+    });
+
 
   return (
     <div className="min-h-screen">
@@ -197,7 +246,9 @@ function ScalpingBot() {
             </div>
             <button
               onClick={() => setRunning((v) => !v)}
-              className={`rounded-md px-4 py-2 text-sm font-semibold transition-colors ${
+              disabled={!running && riskBlocked}
+              title={!running && riskBlocked ? "Limite de perda diária atingido" : undefined}
+              className={`rounded-md px-4 py-2 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                 running
                   ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
                   : "bg-primary text-primary-foreground hover:bg-primary/90"
@@ -205,6 +256,7 @@ function ScalpingBot() {
             >
               {running ? "Parar robô" : "Ligar robô"}
             </button>
+
           </div>
         </div>
       </header>
@@ -219,6 +271,112 @@ function ScalpingBot() {
             </p>
           </div>
         )}
+
+        {riskBlocked && (
+          <div className="panel border-destructive/50 bg-destructive/10 p-4 text-sm">
+            <p className="font-medium text-short">Limite de perda diária atingido</p>
+            <p className="mt-1 text-muted-foreground">
+              PnL de hoje: {fmt(guard?.dailyPnl)} · limite: -{fmt(guard?.lossLimit)} ({config.maxDailyLossPct}%
+              do patrimônio). Novas entradas estão bloqueadas até 00:00 UTC.
+            </p>
+          </div>
+        )}
+
+        <div className="panel p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold">Gestão de risco</h2>
+            <span className={`text-[11px] ${riskBlocked ? "text-short" : "text-long"}`}>
+              {risk.data?.credentials === false
+                ? "○ sem chaves"
+                : riskBlocked
+                  ? "● bloqueado hoje"
+                  : "● dentro do limite"}
+            </span>
+          </div>
+
+          <div className="mt-3 grid gap-3 text-xs sm:grid-cols-3">
+            <label className="block">
+              <span className="stat-label">Risco por trade (% do patrimônio)</span>
+              <input
+                type="number"
+                step={0.1}
+                min={0}
+                max={100}
+                value={config.riskPerTradePct}
+                onChange={(e) => update("riskPerTradePct", Number(e.target.value))}
+                className="mono mt-1 w-full rounded-md border border-input bg-surface px-2 py-1.5 text-sm outline-none focus:border-ring"
+              />
+            </label>
+            <label className="block">
+              <span className="stat-label">Perda diária máxima (%)</span>
+              <input
+                type="number"
+                step={0.5}
+                min={0}
+                max={100}
+                value={config.maxDailyLossPct}
+                onChange={(e) => update("maxDailyLossPct", Number(e.target.value))}
+                className="mono mt-1 w-full rounded-md border border-input bg-surface px-2 py-1.5 text-sm outline-none focus:border-ring"
+              />
+            </label>
+            <label className="block">
+              <span className="stat-label">Alavancagem máxima (x)</span>
+              <input
+                type="number"
+                step={1}
+                min={1}
+                max={125}
+                value={config.maxLeverage}
+                onChange={(e) => update("maxLeverage", Number(e.target.value))}
+                className="mono mt-1 w-full rounded-md border border-input bg-surface px-2 py-1.5 text-sm outline-none focus:border-ring"
+              />
+            </label>
+          </div>
+
+          <label className="mt-3 flex items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              checked={config.useRiskSizing}
+              onChange={(e) => update("useRiskSizing", e.target.checked)}
+              className="size-4 accent-[var(--color-primary)]"
+            />
+            <span>Calcular quantidade pelo risco (em vez de quantidade fixa)</span>
+          </label>
+
+          <dl className="mt-4 grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
+            <div>
+              <dt className="stat-label">Risco por trade</dt>
+              <dd className="mono">{riskAmount === null ? "—" : `${fmt(riskAmount)} USDT`}</dd>
+            </div>
+            <div>
+              <dt className="stat-label">Qtd. estimada</dt>
+              <dd className="mono">{fmt(estimatedQty, 4)}</dd>
+            </div>
+            <div>
+              <dt className="stat-label">PnL de hoje</dt>
+              <dd className={`mono ${(guard?.dailyPnl ?? 0) >= 0 ? "text-long" : "text-short"}`}>
+                {fmt(guard?.dailyPnl)}
+              </dd>
+            </div>
+            <div>
+              <dt className="stat-label">Limite diário</dt>
+              <dd className="mono">{guard ? `-${fmt(guard.lossLimit)}` : "—"}</dd>
+            </div>
+          </dl>
+
+          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-secondary">
+            <div
+              className={`h-full rounded-full transition-all ${riskBlocked ? "bg-destructive" : "bg-warning"}`}
+              style={{ width: `${Math.min(100, Math.max(0, guard?.lossPct ?? 0))}%` }}
+            />
+          </div>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            Consumo do limite de perda diária: {fmt(Math.min(100, guard?.lossPct ?? 0), 0)}% · alavancagem
+            efetiva limitada a {config.maxLeverage}x.
+          </p>
+        </div>
+
+
 
         <section className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
           <div className="panel p-4">
@@ -342,14 +500,14 @@ function ScalpingBot() {
               <div className="mt-4 grid grid-cols-2 gap-2">
                 <button
                   onClick={() => manualOrder.mutate("LONG")}
-                  disabled={manualOrder.isPending || !analysis}
+                  disabled={manualOrder.isPending || !analysis || riskBlocked}
                   className="rounded-md bg-long/15 px-3 py-2 text-xs font-semibold text-long transition-colors hover:bg-long/25 disabled:opacity-50"
                 >
                   Comprar (LONG)
                 </button>
                 <button
                   onClick={() => manualOrder.mutate("SHORT")}
-                  disabled={manualOrder.isPending || !analysis}
+                  disabled={manualOrder.isPending || !analysis || riskBlocked}
                   className="rounded-md bg-short/15 px-3 py-2 text-xs font-semibold text-short transition-colors hover:bg-short/25 disabled:opacity-50"
                 >
                   Vender (SHORT)
