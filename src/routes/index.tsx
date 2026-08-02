@@ -141,6 +141,7 @@ function ScalpingBot() {
       pushLog("trade", "Posição encerrada a mercado.");
       toast.success("Posição encerrada");
       void account.refetch();
+      void risk.refetch();
     },
     onError: (error: Error) => {
       pushLog("error", error.message);
@@ -162,11 +163,18 @@ function ScalpingBot() {
           pushLog("trade", res.message);
           toast.success(res.message);
           void account.refetch();
+          void risk.refetch();
+        } else if (res.action === "blocked") {
+          pushLog("error", res.message);
+          toast.error(res.message);
+          void risk.refetch();
+          setRunning(false);
         } else if (res.action === "skip") {
           pushLog("error", res.message);
         } else {
           pushLog("info", res.message);
         }
+
       } catch (error) {
         if (!cancelled) {
           const message = error instanceof Error ? error.message : "Falha no ciclo do robô";
