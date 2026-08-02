@@ -203,12 +203,28 @@ function ScalpingBot() {
   const credentialsMissing = market.data ? !market.data.credentials : false;
   const positions = account.data?.positions ?? [];
   const balance = account.data?.balance ?? null;
+  const guard = risk.data?.guard ?? null;
+  const riskBlocked = guard?.blocked ?? false;
+
+  const riskAmount = balance ? (balance.equity * config.riskPerTradePct) / 100 : null;
+  const estimatedQty =
+    config.useRiskSizing && riskAmount && analysis?.price && config.stopLossPct > 0
+      ? riskAmount / (analysis.price * (config.stopLossPct / 100))
+      : config.quantity;
 
   const sideColor =
     analysis?.side === "LONG" ? "text-long" : analysis?.side === "SHORT" ? "text-short" : "text-muted-foreground";
 
   const update = <K extends keyof BotConfig>(key: K, value: BotConfig[K]) =>
-    setConfig((prev) => ({ ...prev, [key]: value }));
+    setConfig((prev) => {
+      const next = { ...prev, [key]: value };
+      if (key === "maxLeverage" || key === "leverage") {
+        next.maxLeverage = Math.max(1, Math.min(125, Math.floor(next.maxLeverage || 1)));
+        next.leverage = Math.max(1, Math.min(next.maxLeverage, Math.floor(next.leverage || 1)));
+      }
+      return next;
+    });
+
 
   return (
     <div className="min-h-screen">
