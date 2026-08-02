@@ -15,9 +15,15 @@ const configSchema = z.object({
   takeProfitPct: z.number(),
   stopLossPct: z.number(),
   allowShort: z.boolean(),
+  // gestão de risco
+  riskPerTradePct: z.number().min(0).max(100),
+  maxDailyLossPct: z.number().min(0).max(100),
+  maxLeverage: z.number().min(1).max(125),
+  useRiskSizing: z.boolean(),
 });
 
 export type BotConfig = z.infer<typeof configSchema>;
+
 
 export const getMarket = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => configSchema.parse(input))
