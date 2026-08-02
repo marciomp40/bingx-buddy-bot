@@ -58,7 +58,12 @@ const defaultConfig: BotConfig = {
   takeProfitPct: 0.4,
   stopLossPct: 0.25,
   allowShort: true,
+  riskPerTradePct: 1,
+  maxDailyLossPct: 3,
+  maxLeverage: 10,
+  useRiskSizing: true,
 };
+
 
 type LogEntry = { at: number; kind: "info" | "trade" | "error"; text: string };
 
