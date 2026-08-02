@@ -17,7 +17,14 @@ import { toast } from "sonner";
 
 import { Toaster } from "@/components/ui/sonner";
 import type { BotConfig } from "@/lib/trading.functions";
-import { botTick, closeTrade, getAccount, getMarket, openTrade } from "@/lib/trading.functions";
+import {
+  botTick,
+  closeTrade,
+  getAccount,
+  getMarket,
+  getRiskStatus,
+  openTrade,
+} from "@/lib/trading.functions";
 
 export const Route = createFileRoute("/")({
   head: () => ({
