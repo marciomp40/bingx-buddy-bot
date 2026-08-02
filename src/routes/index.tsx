@@ -83,6 +83,7 @@ function ScalpingBot() {
   const tickFn = useServerFn(botTick);
   const openFn = useServerFn(openTrade);
   const closeFn = useServerFn(closeTrade);
+  const riskFn = useServerFn(getRiskStatus);
 
   const pushLog = useCallback((kind: LogEntry["kind"], text: string) => {
     setLog((prev) => [{ at: Date.now(), kind, text }, ...prev].slice(0, 40));
@@ -99,6 +100,13 @@ function ScalpingBot() {
     queryFn: () => accountFn({ data: { symbol: config.symbol } }),
     refetchInterval: 8000,
   });
+
+  const risk = useQuery({
+    queryKey: ["risk", config.symbol, config.maxDailyLossPct],
+    queryFn: () => riskFn({ data: { symbol: config.symbol, maxDailyLossPct: config.maxDailyLossPct } }),
+    refetchInterval: 20000,
+  });
+
 
   const manualOrder = useMutation({
     mutationFn: (side: "LONG" | "SHORT") =>
