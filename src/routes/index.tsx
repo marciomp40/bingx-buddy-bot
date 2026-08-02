@@ -119,10 +119,15 @@ function ScalpingBot() {
     mutationFn: (side: "LONG" | "SHORT") =>
       openFn({ data: { ...config, side, price: market.data?.analysis?.price ?? 0 } }),
     onSuccess: (res) => {
-      pushLog("trade", `Ordem manual ${res.side} enviada · TP ${fmt(res.takeProfit)} / SL ${fmt(res.stopLoss)}`);
+      pushLog(
+        "trade",
+        `Ordem manual ${res.side} enviada · ${res.quantity} @ ${res.leverage}x (sizing ${res.sizing}) · TP ${fmt(res.takeProfit)} / SL ${fmt(res.stopLoss)}`,
+      );
       toast.success(`Ordem ${res.side} enviada`);
       void account.refetch();
+      void risk.refetch();
     },
+
     onError: (error: Error) => {
       pushLog("error", error.message);
       toast.error(error.message);
