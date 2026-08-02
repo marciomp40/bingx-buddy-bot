@@ -272,6 +272,112 @@ function ScalpingBot() {
           </div>
         )}
 
+        {riskBlocked && (
+          <div className="panel border-destructive/50 bg-destructive/10 p-4 text-sm">
+            <p className="font-medium text-short">Limite de perda diária atingido</p>
+            <p className="mt-1 text-muted-foreground">
+              PnL de hoje: {fmt(guard?.dailyPnl)} · limite: -{fmt(guard?.lossLimit)} ({config.maxDailyLossPct}%
+              do patrimônio). Novas entradas estão bloqueadas até 00:00 UTC.
+            </p>
+          </div>
+        )}
+
+        <div className="panel p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold">Gestão de risco</h2>
+            <span className={`text-[11px] ${riskBlocked ? "text-short" : "text-long"}`}>
+              {risk.data?.credentials === false
+                ? "○ sem chaves"
+                : riskBlocked
+                  ? "● bloqueado hoje"
+                  : "● dentro do limite"}
+            </span>
+          </div>
+
+          <div className="mt-3 grid gap-3 text-xs sm:grid-cols-3">
+            <label className="block">
+              <span className="stat-label">Risco por trade (% do patrimônio)</span>
+              <input
+                type="number"
+                step={0.1}
+                min={0}
+                max={100}
+                value={config.riskPerTradePct}
+                onChange={(e) => update("riskPerTradePct", Number(e.target.value))}
+                className="mono mt-1 w-full rounded-md border border-input bg-surface px-2 py-1.5 text-sm outline-none focus:border-ring"
+              />
+            </label>
+            <label className="block">
+              <span className="stat-label">Perda diária máxima (%)</span>
+              <input
+                type="number"
+                step={0.5}
+                min={0}
+                max={100}
+                value={config.maxDailyLossPct}
+                onChange={(e) => update("maxDailyLossPct", Number(e.target.value))}
+                className="mono mt-1 w-full rounded-md border border-input bg-surface px-2 py-1.5 text-sm outline-none focus:border-ring"
+              />
+            </label>
+            <label className="block">
+              <span className="stat-label">Alavancagem máxima (x)</span>
+              <input
+                type="number"
+                step={1}
+                min={1}
+                max={125}
+                value={config.maxLeverage}
+                onChange={(e) => update("maxLeverage", Number(e.target.value))}
+                className="mono mt-1 w-full rounded-md border border-input bg-surface px-2 py-1.5 text-sm outline-none focus:border-ring"
+              />
+            </label>
+          </div>
+
+          <label className="mt-3 flex items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              checked={config.useRiskSizing}
+              onChange={(e) => update("useRiskSizing", e.target.checked)}
+              className="size-4 accent-[var(--color-primary)]"
+            />
+            <span>Calcular quantidade pelo risco (em vez de quantidade fixa)</span>
+          </label>
+
+          <dl className="mt-4 grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
+            <div>
+              <dt className="stat-label">Risco por trade</dt>
+              <dd className="mono">{riskAmount === null ? "—" : `${fmt(riskAmount)} USDT`}</dd>
+            </div>
+            <div>
+              <dt className="stat-label">Qtd. estimada</dt>
+              <dd className="mono">{fmt(estimatedQty, 4)}</dd>
+            </div>
+            <div>
+              <dt className="stat-label">PnL de hoje</dt>
+              <dd className={`mono ${(guard?.dailyPnl ?? 0) >= 0 ? "text-long" : "text-short"}`}>
+                {fmt(guard?.dailyPnl)}
+              </dd>
+            </div>
+            <div>
+              <dt className="stat-label">Limite diário</dt>
+              <dd className="mono">{guard ? `-${fmt(guard.lossLimit)}` : "—"}</dd>
+            </div>
+          </dl>
+
+          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-secondary">
+            <div
+              className={`h-full rounded-full transition-all ${riskBlocked ? "bg-destructive" : "bg-warning"}`}
+              style={{ width: `${Math.min(100, Math.max(0, guard?.lossPct ?? 0))}%` }}
+            />
+          </div>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            Consumo do limite de perda diária: {fmt(Math.min(100, guard?.lossPct ?? 0), 0)}% · alavancagem
+            efetiva limitada a {config.maxLeverage}x.
+          </p>
+        </div>
+
+
+
         <section className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
           <div className="panel p-4">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
