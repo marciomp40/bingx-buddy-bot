@@ -500,14 +500,14 @@ function ScalpingBot() {
               <div className="mt-4 grid grid-cols-2 gap-2">
                 <button
                   onClick={() => manualOrder.mutate("LONG")}
-                  disabled={manualOrder.isPending || !analysis}
+                  disabled={manualOrder.isPending || !analysis || riskBlocked}
                   className="rounded-md bg-long/15 px-3 py-2 text-xs font-semibold text-long transition-colors hover:bg-long/25 disabled:opacity-50"
                 >
                   Comprar (LONG)
                 </button>
                 <button
                   onClick={() => manualOrder.mutate("SHORT")}
-                  disabled={manualOrder.isPending || !analysis}
+                  disabled={manualOrder.isPending || !analysis || riskBlocked}
                   className="rounded-md bg-short/15 px-3 py-2 text-xs font-semibold text-short transition-colors hover:bg-short/25 disabled:opacity-50"
                 >
                   Vender (SHORT)
