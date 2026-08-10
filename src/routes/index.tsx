@@ -6,6 +6,7 @@ import {
   Area,
   Bar,
   CartesianGrid,
+  Cell,
   ComposedChart,
   Line,
   ResponsiveContainer,
@@ -13,6 +14,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+
 import { toast } from "sonner";
 
 import { Toaster } from "@/components/ui/sonner";
@@ -50,6 +52,44 @@ export const Route = createFileRoute("/")({
 
 const SYMBOLS = ["BTC-USDT", "ETH-USDT", "SOL-USDT", "XRP-USDT", "DOGE-USDT", "BNB-USDT"];
 const INTERVALS = ["1m", "3m", "5m", "15m"];
+
+type CandleShapeProps = {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  payload?: { open: number; close: number; high: number; low: number; bullish: boolean };
+};
+
+/** Desenha uma vela (corpo + pavio) usando o range [low, high] da barra. */
+function CandleShape({ x = 0, y = 0, width = 0, height = 0, payload }: CandleShapeProps) {
+  if (!payload) return null;
+  const { open, close, high, low, bullish } = payload;
+  const range = high - low;
+  const scale = range > 0 ? height / range : 0;
+  const priceToY = (p: number) => y + (high - p) * scale;
+  const color = bullish ? "var(--color-chart-2)" : "var(--color-destructive)";
+  const bodyTop = priceToY(Math.max(open, close));
+  const bodyBottom = priceToY(Math.min(open, close));
+  const bodyHeight = Math.max(bodyBottom - bodyTop, 1);
+  const bodyWidth = Math.max(width * 0.6, 1);
+  const center = x + width / 2;
+  return (
+    <g>
+      <line x1={center} x2={center} y1={y} y2={y + height} stroke={color} strokeWidth={1} />
+      <rect
+        x={center - bodyWidth / 2}
+        y={bodyTop}
+        width={bodyWidth}
+        height={bodyHeight}
+        fill={bullish ? color : color}
+        fillOpacity={bullish ? 0.9 : 0.9}
+        stroke={color}
+      />
+    </g>
+  );
+}
+
 
 const defaultConfig: BotConfig = {
   symbol: "BTC-USDT",
@@ -196,10 +236,20 @@ function ScalpingBot() {
   }, [running, config]);
 
   const analysis = market.data?.analysis ?? null;
-  const chartData = (market.data?.bands ?? []).map((b) => ({
-    ...b,
-    label: new Date(b.time).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
-  }));
+  const candlesRaw = market.data?.candles ?? [];
+  const chartData = (market.data?.bands ?? []).map((b, i) => {
+    const c = candlesRaw[i];
+    return {
+      ...b,
+      open: c?.open ?? b.close,
+      high: c?.high ?? b.close,
+      low: c?.low ?? b.close,
+      candle: [c?.low ?? b.close, c?.high ?? b.close] as [number, number],
+      bullish: (c?.close ?? b.close) >= (c?.open ?? b.close),
+      label: new Date(b.time).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+    };
+  });
+
   const credentialsMissing = market.data ? !market.data.credentials : false;
   const positions = account.data?.positions ?? [];
   const balance = account.data?.balance ?? null;
@@ -431,7 +481,7 @@ function ScalpingBot() {
                   <Area type="monotone" dataKey="upper" stroke="var(--color-chart-1)" fill="var(--color-chart-1)" fillOpacity={0.06} strokeWidth={1} dot={false} />
                   <Area type="monotone" dataKey="lower" stroke="var(--color-chart-1)" fill="var(--color-background)" fillOpacity={0.4} strokeWidth={1} dot={false} />
                   <Line type="monotone" dataKey="basis" stroke="var(--color-muted-foreground)" strokeDasharray="4 4" strokeWidth={1} dot={false} />
-                  <Line type="monotone" dataKey="close" stroke="var(--color-chart-2)" strokeWidth={2} dot={false} />
+                  <Bar dataKey="candle" shape={<CandleShape />} isAnimationActive={false} barSize={8} />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
@@ -449,7 +499,15 @@ function ScalpingBot() {
                       fontSize: 12,
                     }}
                   />
-                  <Bar dataKey="volume" fill="var(--color-chart-1)" fillOpacity={0.5} />
+                  <Bar dataKey="volume" fillOpacity={0.55} isAnimationActive={false}>
+                    {chartData.map((d, i) => (
+                      <Cell
+                        key={i}
+                        fill={d.bullish ? "var(--color-chart-2)" : "var(--color-destructive)"}
+                      />
+                    ))}
+                  </Bar>
+
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
