@@ -119,11 +119,24 @@ function fmt(value: number | undefined | null, digits = 2) {
   return value.toLocaleString("pt-BR", { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }
 
+const RUNNING_KEY = "scalping-bot-running";
+
 function ScalpingBot() {
   const [config, setConfig] = useState<BotConfig>(defaultConfig);
   const [running, setRunning] = useState(false);
   const [log, setLog] = useState<LogEntry[]>([]);
   const tickingRef = useRef(false);
+  const configRef = useRef(config);
+  configRef.current = config;
+
+  // restaura o estado do robô após recarregar a página
+  useEffect(() => {
+    if (localStorage.getItem(RUNNING_KEY) === "1") setRunning(true);
+  }, []);
+  useEffect(() => {
+    localStorage.setItem(RUNNING_KEY, running ? "1" : "0");
+  }, [running]);
+
 
   const marketFn = useServerFn(getMarket);
   const accountFn = useServerFn(getAccount);
