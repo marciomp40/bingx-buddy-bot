@@ -481,7 +481,7 @@ function ScalpingBot() {
                   <Area type="monotone" dataKey="upper" stroke="var(--color-chart-1)" fill="var(--color-chart-1)" fillOpacity={0.06} strokeWidth={1} dot={false} />
                   <Area type="monotone" dataKey="lower" stroke="var(--color-chart-1)" fill="var(--color-background)" fillOpacity={0.4} strokeWidth={1} dot={false} />
                   <Line type="monotone" dataKey="basis" stroke="var(--color-muted-foreground)" strokeDasharray="4 4" strokeWidth={1} dot={false} />
-                  <Line type="monotone" dataKey="close" stroke="var(--color-chart-2)" strokeWidth={2} dot={false} />
+                  <Bar dataKey="candle" shape={<CandleShape />} isAnimationActive={false} barSize={8} />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
