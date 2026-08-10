@@ -499,7 +499,15 @@ function ScalpingBot() {
                       fontSize: 12,
                     }}
                   />
-                  <Bar dataKey="volume" fill="var(--color-chart-1)" fillOpacity={0.5} />
+                  <Bar dataKey="volume" fillOpacity={0.55} isAnimationActive={false}>
+                    {chartData.map((d, i) => (
+                      <Cell
+                        key={i}
+                        fill={d.bullish ? "var(--color-chart-2)" : "var(--color-destructive)"}
+                      />
+                    ))}
+                  </Bar>
+
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
