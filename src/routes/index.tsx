@@ -210,7 +210,7 @@ function ScalpingBot() {
       if (tickingRef.current) return;
       tickingRef.current = true;
       try {
-        const res = await tickFn({ data: config });
+        const res = await tickFn({ data: configRef.current });
         if (cancelled) return;
         if (res.action === "opened") {
           pushLog("trade", res.message);
@@ -238,7 +238,7 @@ function ScalpingBot() {
       }
     };
 
-    pushLog("info", `Robô iniciado em ${config.symbol} · ${config.interval}`);
+    pushLog("info", `Robô iniciado em ${configRef.current.symbol} · ${configRef.current.interval}`);
     void tick();
     const id = setInterval(() => void tick(), 15000);
     return () => {
@@ -246,7 +246,8 @@ function ScalpingBot() {
       clearInterval(id);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [running, config]);
+  }, [running]);
+
 
   const analysis = market.data?.analysis ?? null;
   const candlesRaw = market.data?.candles ?? [];
