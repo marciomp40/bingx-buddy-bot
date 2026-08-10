@@ -33,13 +33,26 @@ async function sign(payload: string, secret: string) {
 
 type Params = Record<string, string | number | undefined>;
 
-function buildQuery(params: Params) {
+function sortedEntries(params: Params) {
   return Object.entries(params)
     .filter(([, v]) => v !== undefined && v !== "")
-    .sort(([a], [b]) => (a < b ? -1 : 1))
+    .sort(([a], [b]) => (a < b ? -1 : 1));
+}
+
+/** String crua usada para assinar (a BingX assina sem URL-encode). */
+function buildQuery(params: Params) {
+  return sortedEntries(params)
     .map(([k, v]) => `${k}=${v}`)
     .join("&");
 }
+
+/** String enviada na URL — valores precisam ser codificados (JSON de TP/SL). */
+function buildEncodedQuery(params: Params) {
+  return sortedEntries(params)
+    .map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`)
+    .join("&");
+}
+
 
 export async function publicRequest<T>(path: string, params: Params = {}): Promise<T> {
   const query = buildQuery(params);
@@ -59,10 +72,11 @@ export async function signedRequest<T>(
   params: Params = {},
 ): Promise<T> {
   const { apiKey, apiSecret } = requireCredentials();
-  const query = buildQuery({ ...params, timestamp: Date.now(), recvWindow: 5000 });
-  const signature = await sign(query, apiSecret);
-  const url = `${BASE_URL}${path}?${query}&signature=${signature}`;
+  const all = { ...params, timestamp: Date.now(), recvWindow: 5000 };
+  const signature = await sign(buildQuery(all), apiSecret);
+  const url = `${BASE_URL}${path}?${buildEncodedQuery(all)}&signature=${signature}`;
   const response = await fetch(url, { method, headers: { "X-BX-APIKEY": apiKey } });
+
   const text = await response.text();
   if (!response.ok) {
     throw new Error(`BingX respondeu ${response.status}: ${text}`);
