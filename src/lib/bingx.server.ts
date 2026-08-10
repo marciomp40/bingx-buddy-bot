@@ -72,10 +72,11 @@ export async function signedRequest<T>(
   params: Params = {},
 ): Promise<T> {
   const { apiKey, apiSecret } = requireCredentials();
-  const query = buildQuery({ ...params, timestamp: Date.now(), recvWindow: 5000 });
-  const signature = await sign(query, apiSecret);
-  const url = `${BASE_URL}${path}?${query}&signature=${signature}`;
+  const all = { ...params, timestamp: Date.now(), recvWindow: 5000 };
+  const signature = await sign(buildQuery(all), apiSecret);
+  const url = `${BASE_URL}${path}?${buildEncodedQuery(all)}&signature=${signature}`;
   const response = await fetch(url, { method, headers: { "X-BX-APIKEY": apiKey } });
+
   const text = await response.text();
   if (!response.ok) {
     throw new Error(`BingX respondeu ${response.status}: ${text}`);
