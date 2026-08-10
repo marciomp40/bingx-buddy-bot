@@ -119,11 +119,24 @@ function fmt(value: number | undefined | null, digits = 2) {
   return value.toLocaleString("pt-BR", { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }
 
+const RUNNING_KEY = "scalping-bot-running";
+
 function ScalpingBot() {
   const [config, setConfig] = useState<BotConfig>(defaultConfig);
   const [running, setRunning] = useState(false);
   const [log, setLog] = useState<LogEntry[]>([]);
   const tickingRef = useRef(false);
+  const configRef = useRef(config);
+  configRef.current = config;
+
+  // restaura o estado do robô após recarregar a página
+  useEffect(() => {
+    if (localStorage.getItem(RUNNING_KEY) === "1") setRunning(true);
+  }, []);
+  useEffect(() => {
+    localStorage.setItem(RUNNING_KEY, running ? "1" : "0");
+  }, [running]);
+
 
   const marketFn = useServerFn(getMarket);
   const accountFn = useServerFn(getAccount);
@@ -197,7 +210,7 @@ function ScalpingBot() {
       if (tickingRef.current) return;
       tickingRef.current = true;
       try {
-        const res = await tickFn({ data: config });
+        const res = await tickFn({ data: configRef.current });
         if (cancelled) return;
         if (res.action === "opened") {
           pushLog("trade", res.message);
@@ -225,7 +238,7 @@ function ScalpingBot() {
       }
     };
 
-    pushLog("info", `Robô iniciado em ${config.symbol} · ${config.interval}`);
+    pushLog("info", `Robô iniciado em ${configRef.current.symbol} · ${configRef.current.interval}`);
     void tick();
     const id = setInterval(() => void tick(), 15000);
     return () => {
@@ -233,7 +246,8 @@ function ScalpingBot() {
       clearInterval(id);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [running, config]);
+  }, [running]);
+
 
   const analysis = market.data?.analysis ?? null;
   const candlesRaw = market.data?.candles ?? [];
