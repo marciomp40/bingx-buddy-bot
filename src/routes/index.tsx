@@ -17,7 +17,9 @@ import {
 
 import { toast } from "sonner";
 
+import { InstallAppButton } from "@/components/install-app-button";
 import { Toaster } from "@/components/ui/sonner";
+
 import type { BotConfig } from "@/lib/trading.functions";
 import {
   botTick,
@@ -320,6 +322,8 @@ function ScalpingBot() {
             >
               {running ? "Parar robô" : "Ligar robô"}
             </button>
+            <InstallAppButton />
+
 
           </div>
         </div>
