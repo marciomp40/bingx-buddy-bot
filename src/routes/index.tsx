@@ -196,10 +196,20 @@ function ScalpingBot() {
   }, [running, config]);
 
   const analysis = market.data?.analysis ?? null;
-  const chartData = (market.data?.bands ?? []).map((b) => ({
-    ...b,
-    label: new Date(b.time).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
-  }));
+  const candlesRaw = market.data?.candles ?? [];
+  const chartData = (market.data?.bands ?? []).map((b, i) => {
+    const c = candlesRaw[i];
+    return {
+      ...b,
+      open: c?.open ?? b.close,
+      high: c?.high ?? b.close,
+      low: c?.low ?? b.close,
+      candle: [c?.low ?? b.close, c?.high ?? b.close] as [number, number],
+      bullish: (c?.close ?? b.close) >= (c?.open ?? b.close),
+      label: new Date(b.time).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+    };
+  });
+
   const credentialsMissing = market.data ? !market.data.credentials : false;
   const positions = account.data?.positions ?? [];
   const balance = account.data?.balance ?? null;
