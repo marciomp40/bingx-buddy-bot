@@ -53,6 +53,44 @@ export const Route = createFileRoute("/")({
 const SYMBOLS = ["BTC-USDT", "ETH-USDT", "SOL-USDT", "XRP-USDT", "DOGE-USDT", "BNB-USDT"];
 const INTERVALS = ["1m", "3m", "5m", "15m"];
 
+type CandleShapeProps = {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  payload?: { open: number; close: number; high: number; low: number; bullish: boolean };
+};
+
+/** Desenha uma vela (corpo + pavio) usando o range [low, high] da barra. */
+function CandleShape({ x = 0, y = 0, width = 0, height = 0, payload }: CandleShapeProps) {
+  if (!payload) return null;
+  const { open, close, high, low, bullish } = payload;
+  const range = high - low;
+  const scale = range > 0 ? height / range : 0;
+  const priceToY = (p: number) => y + (high - p) * scale;
+  const color = bullish ? "var(--color-chart-2)" : "var(--color-destructive)";
+  const bodyTop = priceToY(Math.max(open, close));
+  const bodyBottom = priceToY(Math.min(open, close));
+  const bodyHeight = Math.max(bodyBottom - bodyTop, 1);
+  const bodyWidth = Math.max(width * 0.6, 1);
+  const center = x + width / 2;
+  return (
+    <g>
+      <line x1={center} x2={center} y1={y} y2={y + height} stroke={color} strokeWidth={1} />
+      <rect
+        x={center - bodyWidth / 2}
+        y={bodyTop}
+        width={bodyWidth}
+        height={bodyHeight}
+        fill={bullish ? color : color}
+        fillOpacity={bullish ? 0.9 : 0.9}
+        stroke={color}
+      />
+    </g>
+  );
+}
+
+
 const defaultConfig: BotConfig = {
   symbol: "BTC-USDT",
   interval: "1m",
