@@ -6,6 +6,7 @@ import {
   Area,
   Bar,
   CartesianGrid,
+  Cell,
   ComposedChart,
   Line,
   ResponsiveContainer,
@@ -13,6 +14,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+
 import { toast } from "sonner";
 
 import { Toaster } from "@/components/ui/sonner";
